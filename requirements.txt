@@ -4,3 +4,5 @@ snowflake-connector-python
 plotly
 scikit-learn
 xgboost
+openai>=1.0.0
+snowflake-connector-python
