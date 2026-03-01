@@ -42,6 +42,7 @@ st.sidebar.page_link("pages/Mandate_Profitability_Prediction.py", label="Predict
 st.sidebar.page_link("pages/test_Prediction1.py", label="Prediction_test1")
 st.sidebar.page_link("pages/copilot.py", label="copilot")
 st.sidebar.page_link("pages/copilot2.py", label="copilot2")
+st.sidebar.page_link("pages/copilot3.py", label="copilot3")
 st.sidebar.markdown("---")
 
 # =========================

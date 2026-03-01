@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.15/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.15",
+  "version": "1.0.0",
+  "id": "9d5c4f6e-7c1b-4e2f-9c5a-2b7f6d8a1e90",
+  "packageName": "com.dhamo.streamlit",
+  "developer": {
+    "name": "Dhamo AI_New",
+    "websiteUrl": "https://dhamoai-swlx2x2slbtfynuqecxsbe.streamlit.app/",
+    "privacyUrl": "https://dhamoai-swlx2x2slbtfynuqecxsbe.streamlit.app/",
+    "termsOfUseUrl": "https://dhamoai-swlx2x2slbtfynuqecxsbe.streamlit.app/"
+  },
+  "name": {
+    "short": "Dhamo AI_New",
+    "full": "Dhamo AI Streamlit App"
+  },
+  "description": {
+    "short": "Streamlit AI app",
+    "full": "Dhamo AI Streamlit application inside Teams"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#6264A7",
+  "staticTabs": [
+    {
+      "entityId": "streamlitTab",
+      "name": "Dhamo AI_New",
+      "contentUrl": "https://dhamoai-swlx2x2slbtfynuqecxsbe.streamlit.app/",
+      "websiteUrl": "https://dhamoai-swlx2x2slbtfynuqecxsbe.streamlit.app/",
+      "scopes": ["personal"]
+    }
+  ],
+  "validDomains": [
+    "dhamoai-swlx2x2slbtfynuqecxsbe.streamlit.app",
+    "streamlit.app"
+  ],
+  "devicePermissions": []
+}
