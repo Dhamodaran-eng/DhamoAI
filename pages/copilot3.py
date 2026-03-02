@@ -183,10 +183,9 @@ user_question = st.chat_input(
 )
 
 # ---------------------------------------------------
-# Chat Processing
+# Chat Processing (WITH PROFESSIONAL LOADING UX)
 # ---------------------------------------------------
 if user_question:
-    # User message
     st.session_state.messages.append(
         {"role": "user", "content": user_question}
     )
@@ -195,37 +194,55 @@ if user_question:
         st.markdown(user_question)
 
     with st.chat_message("assistant"):
+
         try:
+            # ==============================
             # 1️⃣ SQL Generation
-            raw_sql = generate_sql_from_question(user_question)
-            sql_query = clean_sql(raw_sql)
+            # ==============================
+            with st.spinner("🧠 Generating SQL..."):
+                raw_sql = generate_sql_from_question(user_question)
+                sql_query = clean_sql(raw_sql)
 
             st.markdown("### 🧾 Generated SQL")
             st.code(sql_query, language="sql")
 
-            # 2️⃣ Execute SQL
+            # ==============================
+            # 2️⃣ Snowflake Execution
+            # ==============================
             result_df = pd.DataFrame()
+
             if is_safe_select(sql_query):
-                conn = get_snowflake_connection()
-                result_df = pd.read_sql(sql_query, conn)
-                conn.close()
+                with st.spinner("❄️ Fetching data from Snowflake..."):
+                    conn = get_snowflake_connection()
+                    result_df = pd.read_sql(sql_query, conn)
+                    conn.close()
             else:
                 st.error("❌ Unsafe SQL detected")
 
+            # ==============================
             # 3️⃣ Enrich Data
+            # ==============================
             result_df = enrich_dataframe(result_df)
 
-            # 4️⃣ Insights
-            insight = generate_insight(user_question, result_df)
+            # ==============================
+            # 4️⃣ AI Insights (slow step)
+            # ==============================
+            with st.spinner("🤖 Generating executive insights..."):
+                insight = generate_insight(user_question, result_df)
+
             st.markdown("## 🧠 AI Executive Insights")
             st.markdown(insight)
 
+            # ==============================
             # 5️⃣ Data Table
+            # ==============================
             if not result_df.empty:
                 st.markdown("## 📊 Data Snapshot")
                 st.dataframe(result_df, use_container_width=True)
 
+            # ==============================
             # 6️⃣ Visualization
+            # ==============================
             if "TOTAL_AUM" in result_df.columns:
                 id_col = "RMID" if "RMID" in result_df.columns else "MANDATEID"
                 top_df = result_df.sort_values("TOTAL_AUM", ascending=False).head(10)
@@ -239,7 +256,7 @@ if user_question:
                 st.markdown("## 📈 Visualization")
                 st.altair_chart(chart, use_container_width=True)
 
-            # Save assistant summary to memory
+            # Save assistant message
             st.session_state.messages.append(
                 {"role": "assistant", "content": insight}
             )
