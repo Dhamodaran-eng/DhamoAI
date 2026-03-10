@@ -51,13 +51,27 @@ database = "OIG_LiveO3DB"
 username = "Dhamo_RO"
 password = "**Dhamo_RO123**"
 driver = "ODBC Driver 17 for SQL Server"
+port = 1433  # <- define SQL Server port
 
 params = urllib.parse.quote_plus(
     f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}"
 )
 
+
+#---------------------------------------------------
+#If you are running the code locally enable this code
+#---------------------------------------------------
+#Local 
+# engine = sqlalchemy.create_engine(
+#     f"mssql+pyodbc:///?odbc_connect={params}", pool_pre_ping=True
+# )
+
+#---------------------------------------------------
+#If you are running the code Cloud enable this code
+#---------------------------------------------------
+#Cloud: 
 engine = sqlalchemy.create_engine(
-    f"mssql+pyodbc:///?odbc_connect={params}", pool_pre_ping=True
+    f"mssql+pymssql://{username}:{password}@{server}:{port}/{database}"
 )
 
 # ---------------------------
