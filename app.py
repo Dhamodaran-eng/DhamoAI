@@ -43,6 +43,13 @@ st.sidebar.page_link("pages/test_Prediction1.py", label="Prediction_test1")
 st.sidebar.page_link("pages/copilot.py", label="copilot")
 st.sidebar.page_link("pages/copilot2.py", label="copilot2")
 st.sidebar.page_link("pages/copilot3.py", label="copilot3")
+st.sidebar.page_link("pages/O3_Snowflake_copilot.py", label="O3_Snowflake_copilot")
+st.sidebar.page_link("pages/testsqlconnection.py", label="testsqlcon")
+st.sidebar.page_link("pages/SQL_Graph_GNN_LLM_Insights.py", label="SQL_Graph_GNN_LLM_Insights")  #My Local SQL DB
+st.sidebar.page_link("pages/SQL_Graph_GNN_LLM_Insights_v02.py", label="SQL_Graph_GNN_LLM_Insights_v02") #My Local SQL DB
+st.sidebar.page_link("pages/SQL_Graph_GNN_LLM_Insights_v03.py", label="SQL_Graph_GNN_LLM_Insights_v03") #My Local SQL DB
+st.sidebar.page_link("pages/NCR AI Prediction.py", label="NCR AI Prediction.py") #connected Staging DB
+st.sidebar.page_link("pages/NCR AI Prediction_AI Copilot.py", label="NCR AI Prediction_AI Copilot") #connected Staging DB
 st.sidebar.markdown("---")
 
 # =========================

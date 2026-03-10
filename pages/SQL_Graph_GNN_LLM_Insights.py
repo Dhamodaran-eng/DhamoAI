@@ -1,5 +1,5 @@
 # ==========================
-# Streamlit + SQL → Graph → GNN → LLM
+# Streamlit + SQL → Graph → GNN → LLM Insights
 # ==========================
 import streamlit as st
 import pandas as pd
@@ -24,7 +24,7 @@ st.title("SQL → Graph → GNN → LLM Insights")
 # --------------------------
 # 1️⃣ SQL Connection
 # --------------------------
-server = "ODS-901553"      # Replace with IP/hostname if needed
+server = "ODS-901553"      # Replace with your SQL server
 database = "LiveO3DB"
 username = "sa"
 password = "Welcome@123"
@@ -43,9 +43,11 @@ engine = sqlalchemy.create_engine(f"mssql+pyodbc:///?odbc_connect={params}")
 # 2️⃣ Load Tables
 # --------------------------
 st.info("Loading SQL tables...")
-users = pd.read_sql("SELECT * FROM NCR", engine)
-products = pd.read_sql("SELECT * FROM Defects", engine)
-tickets = pd.read_sql("SELECT * FROM ProductionPlan", engine)
+
+ncrs = pd.read_sql("SELECT NcrId, ProdId, ProcessId FROM NCR", engine)
+defects = pd.read_sql("SELECT DefectId FROM Defects", engine)
+production = pd.read_sql("SELECT PP_Id, EG_Id, PT_Id FROM ProductionPlan", engine)
+
 st.success("Tables loaded!")
 
 # --------------------------
@@ -53,69 +55,81 @@ st.success("Tables loaded!")
 # --------------------------
 G = nx.Graph()
 
-# Add NCR Nodes
-for _, row in users.iterrows():
-    G.add_node(f"ncr_{row.NcrId}", type="ncr", features=row.to_dict())
+# Add nodes
+for _, row in ncrs.iterrows():
+    G.add_node(f"ncr_{row.NcrId}", type="ncr")
 
-# Add Product Nodes
-for _, row in products.iterrows():
-    G.add_node(f"product_{row.DefectId}", type="product", features=row.to_dict())
+for _, row in defects.iterrows():
+    G.add_node(f"defect_{row.DefectId}", type="defect")
 
-# Add Ticket Nodes & Edges
-for _, row in tickets.iterrows():
-    G.add_node(f"ticket_{row.PP_Id}", type="ticket", features=row.to_dict())
-    
-    # Example edges (adjust according to your schema)
-    if hasattr(row, "EG_Id") and not pd.isna(row.EG_Id):
-        G.add_edge(f"ncr_{int(row.EG_Id)}", f"ticket_{row.PP_Id}", type="submitted")
-    if hasattr(row, "PT_Id") and not pd.isna(row.PT_Id):
-        G.add_edge(f"ticket_{row.PP_Id}", f"product_{int(row.PT_Id)}", type="related_to")
+for _, row in production.iterrows():
+    G.add_node(f"ticket_{row.PP_Id}", type="ticket")
+
+# Add edges based on your SQL relationships
+for _, row in production.iterrows():
+    # NCR → Ticket
+    if not pd.isna(row.EG_Id):
+        ncr_node = f"ncr_{int(row.EG_Id)}"
+        ticket_node = f"ticket_{row.PP_Id}"
+        if ncr_node in G.nodes() and ticket_node in G.nodes():
+            G.add_edge(ncr_node, ticket_node, type="submitted")
+    # Ticket → Defect
+    if not pd.isna(row.PT_Id):
+        ticket_node = f"ticket_{row.PP_Id}"
+        defect_node = f"defect_{int(row.PT_Id)}"
+        if ticket_node in G.nodes() and defect_node in G.nodes():
+            G.add_edge(ticket_node, defect_node, type="related_to")
+
+# NCR → Defect directly if ProdId exists
+for _, row in ncrs.iterrows():
+    if not pd.isna(row.ProdId):
+        ncr_node = f"ncr_{row.NcrId}"
+        defect_node = f"defect_{int(row.ProdId)}"
+        if ncr_node in G.nodes() and defect_node in G.nodes():
+            G.add_edge(ncr_node, defect_node, type="affects")
 
 st.write(f"Graph created with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
 
 # --------------------------
-# 4️⃣ Node2Vec Embeddings with Caching
+# 4️⃣ Node2Vec Embeddings with fallback for isolated nodes
 # --------------------------
 emb_file = "node_embeddings.pkl"
-
 if os.path.exists(emb_file):
-    st.info("Loading cached Node2Vec embeddings...")
     with open(emb_file, "rb") as f:
-        model = pickle.load(f)
-    st.success("Node2Vec embeddings loaded from cache!")
+        node2vec_model = pickle.load(f)
 else:
-    st.info("Generating Node2Vec embeddings (this may take a few minutes)...")
-    node2vec = Node2Vec(
-        G,
-        dimensions=32,   # smaller embedding for speed
-        walk_length=5,   # shorter walks
-        num_walks=10,    # fewer walks per node
-        workers=4        # use multiple CPU cores
-    )
-    with st.spinner("Running Node2Vec..."):
-        model = node2vec.fit(window=5, min_count=1, batch_words=4)
-    # Save embeddings
+    node2vec_model = Node2Vec(G, dimensions=32, walk_length=5, num_walks=10, workers=4)
+    with st.spinner("Generating Node2Vec embeddings..."):
+        node2vec_model = node2vec_model.fit(window=5, min_count=1, batch_words=4)
     with open(emb_file, "wb") as f:
-        pickle.dump(model, f)
-    st.success("Node2Vec embeddings created and cached!")
-
-# Example Node2Vec embedding
-st.write("Example embedding for first NCR node:", model.wv[list(G.nodes())[0]])
+        pickle.dump(node2vec_model, f)
 
 # --------------------------
-# 5️⃣ Prepare Graph for GNN
+# 5️⃣ Prepare Graph for GNN safely
 # --------------------------
-data = from_networkx(G)
-features = [model.wv[node] for node in G.nodes()]
+# Only extract edges
+data = from_networkx(G, group_node_attrs=None)  # group_node_attrs=None ensures no torch.cat() error
+
+# Node features: Node2Vec for connected nodes, random small vector for isolated
+embedding_dim = 32
+features = []
+for node in G.nodes():
+    if node in node2vec_model.wv:
+        features.append(node2vec_model.wv[node])
+    else:
+        features.append(np.random.normal(0, 0.01, embedding_dim).tolist())
+
 data.x = torch.tensor(features, dtype=torch.float)
 
-# Mock labels (replace with your real target labels)
+# --------------------------
+# 6️⃣ Mock labels for demo (replace with real labels)
+# --------------------------
 num_nodes = len(G.nodes())
 labels = np.random.randint(0, 2, size=num_nodes)
 data.y = torch.tensor(labels, dtype=torch.long)
 
 # --------------------------
-# 6️⃣ Define GNN
+# 7️⃣ Define GNN
 # --------------------------
 class GNN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -128,14 +142,14 @@ class GNN(torch.nn.Module):
         x = self.conv2(x, edge_index)
         return F.log_softmax(x, dim=1)
 
-model_gnn = GNN(in_channels=32, hidden_channels=16, out_channels=2)  # 32 = Node2Vec dim
+model_gnn = GNN(in_channels=embedding_dim, hidden_channels=16, out_channels=2)
 optimizer = torch.optim.Adam(model_gnn.parameters(), lr=0.01)
 loss_fn = torch.nn.NLLLoss()
 
 # --------------------------
-# 7️⃣ Train GNN
+# 8️⃣ Train GNN
 # --------------------------
-st.info("Training GNN (mock example)...")
+st.info("Training GNN...")
 with st.spinner("GNN training in progress..."):
     for epoch in range(50):
         model_gnn.train()
@@ -148,30 +162,26 @@ with st.spinner("GNN training in progress..."):
             st.write(f"Epoch {epoch} - Loss: {loss.item()}")
 st.success("GNN training complete!")
 
-# Predictions
-model_gnn.eval()
+# --------------------------
+# 9️⃣ LLM Insights
+# --------------------------
 predictions = out.argmax(dim=1)
-
-# --------------------------
-# 8️⃣ LLM Insights using st.secrets
-# --------------------------
-high_risk_nodes = [node for i, node in enumerate(G.nodes()) if predictions[i]==1]
-context = f"High risk nodes identified: {high_risk_nodes[:10]} (showing first 10)"
-
-st.write("High risk nodes (first 10):", high_risk_nodes[:10])
+high_risk_nodes = [node for i, node in enumerate(G.nodes()) if predictions[i] == 1]
+context = f"High risk nodes (first 10): {high_risk_nodes[:10]}"
+st.write(context)
 
 # OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets["openai"]["api_key"]
 
 prompt = f"""
-Analyze the following graph prediction results and suggest actionable steps to prevent issues:
+Analyze the following graph prediction results and suggest actionable steps:
 
 {context}
 """
 
 response = openai.chat.completions.create(
     model="gpt-5-mini",
-    messages=[{"role":"user","content":prompt}]
+    messages=[{"role": "user", "content": prompt}]
 )
 
 st.subheader("LLM Recommendations")
